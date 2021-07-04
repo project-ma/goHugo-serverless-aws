@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  SubDomain:
+    Description: The part of a website address before your DomainName - e.g. www or blog
+    Type: String
+  DomainName:
+    Description: The part of a website address after your SubDomain - e.g. example.com
+    Type: String
+  WebRootBucketName:
+    Description: The blog site origin S3 bucket name
+    Type: String
+  WebRootBucketLoggingName:
+    Description: Logging from the Website Bucket hosting the web content
+    Type: String
+  AcmArn:
+    Description: ACM Arn of the SSL certificate for *.project-ma.com
+    Type: String
+
+Resources:
+
+  S3BucketWebRoot:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Ref WebRootBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref WebRootBucketLoggingName
+        LogFilePrefix: 'xyz-s3origin-logs/'
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketWebRoot
+      PolicyDocument:
+        Statement:
+        -
+          Action:
+            - s3:GetObject
+          Effect: Allow
+          Resource:
+            - !Sub "arn:aws:s3:::${S3BucketWebRoot}"
+            - !Sub "arn:aws:s3:::${S3BucketWebRoot}/*" 
+          Principal:
+            CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+        -
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:ListBucket
+            - s3:DeleteObject
+          Effect: Allow
+          Resource:
+            - !Sub "arn:aws:s3:::${S3BucketWebRoot}"
+            - !Sub "arn:aws:s3:::${S3BucketWebRoot}/*" 
+          Principal:
+            AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/CodeBuildRole"
+
+  S3BucketLogs:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Ref WebRootBucketLoggingName
+      AccessControl: BucketOwnerFullControl
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  
+  S3BucketLogsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketLogs
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - s3:GetBucketAcl
+              - s3:PutBucketAcl
+            Effect: Allow
+            Resource:
+              - !Sub "arn:aws:s3:::${S3BucketLogs}"
+              - !Sub "arn:aws:s3:::${S3BucketLogs}/*" 
+            Principal:
+              AWS: !Ref "AWS::AccountId"
+
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    DependsOn: S3BucketLogsPolicy
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'CloudFront OAI for ${SubDomain}.${DomainName}'
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - 'xyz.acme.com'
+        Origins:
+        - DomainName: !Sub '${WebRootBucketName}.s3.ap-southeast-2.amazonaws.com'  # The DNS domain name of the Amazon S3 bucket https://DOC-EXAMPLE-BUCKET.s3-website.ap-southeast-2.amazonaws.com
+          Id: !Sub 'S3-${AWS::StackName}-root'
+          # OriginPath: /public
+          S3OriginConfig:
+            OriginAccessIdentity: !Join ['', ['origin-access-identity/cloudfront/', !Ref CloudFrontOriginAccessIdentity]]
+        Enabled: true
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        Logging:
+          IncludeCookies: false
+          Bucket: !Sub '${WebRootBucketLoggingName}.s3.amazonaws.com'
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET 
+            - HEAD
+          TargetOriginId: !Sub 'S3-${AWS::StackName}-root'
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https  # redirect-to-https || https-only || allow-all
+        PriceClass: PriceClass_200
+        ViewerCertificate:
+          #   CloudFrontDefaultCertificate: false
+          AcmCertificateArn: !Ref AcmArn
+          MinimumProtocolVersion: TLSv1.2_2019
+          SslSupportMethod: sni-only
+
+Outputs:
+  CloudfrontDistributionId:
+    Description: CloudFront Distribution Id 
+    Value: !Ref CloudFrontDistribution
+  S3OriginBucket:
+    Description: S3 Origin Bucket Name
+    Value: !Ref S3BucketWebRoot
+  S3OriginBucketArn:
+    Description: S3 Origin Bucket Arn
+    Value: !GetAtt S3BucketWebRoot.Arn
+  S3LoggingBucket:
+    Description: S3 Blog Logging Bucket Name 
+    Value: !Ref S3BucketLogs

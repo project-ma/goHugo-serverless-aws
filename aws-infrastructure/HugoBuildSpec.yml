@@ -1,0 +1,37 @@
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    StaticStiteContentDir: "./quickstart/public"
+    HugoProjectDir: "quickstart"
+    HugoVersion: "0.83.1"
+
+phases:
+  install:
+    on-failure: ABORT
+    runtime-versions:
+      python: 3.8
+    commands:
+      - apt-get update
+
+  pre_build:
+    on-failure: ABORT
+    commands:
+      - cd $CODEBUILD_SRC_DIR
+      - echo "Copy Hugo Binary to local bin path"
+      - cp ./bin/hugo-${HugoVersion}-extended /usr/local/bin/hugo
+
+  build:
+    commands:
+      - echo "*** Cleanup bucket content ***"
+      - aws s3 rm s3://${S3OriginBucket}/ --recursive
+      - hugo version
+      - echo "*** Changing to Hugo Project Directory so Hugo can read default config.toml file ***"
+      - cd ${HugoProjectDir}
+      - echo "*** Generate Hugo Static Site Page content ***"
+      - hugo
+      - ls -l ${CODEBUILD_SRC_DIR}/${StaticStiteContentDir}
+      - echo "*** Publish new blog content to S3 Bucket ***"
+      - aws s3 cp ${CODEBUILD_SRC_DIR}/${StaticStiteContentDir}/ s3://${S3OriginBucket}/ --recursive
+      - aws cloudfront create-invalidation --distribution-id ${DistributionId} --paths "/*" 

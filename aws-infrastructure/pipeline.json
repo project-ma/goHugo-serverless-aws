@@ -1,0 +1,13 @@
+{
+  "Parameters": {
+    "PipelineStackName": "....",
+    "PipelineName": "....",
+    "BucketPrefix": "....",
+    "BucketRegion": "ap-southeast-2",
+    "GitHubRepo": "....",
+    "GitHubBranch": "main",
+    "CodeBuildProjectName": "HugoSiteGenerator",
+    "BuildSpecFile": "./aws-infrastructure/HugoBuildSpec.yml",
+    "DistributionId": "...."
+  }
+}

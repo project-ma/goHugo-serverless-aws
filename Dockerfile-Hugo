@@ -1,0 +1,16 @@
+FROM golang:1.16.5-buster
+
+ENV HUGO_VER=v0.83.1
+ENV GOPATH=/root/go
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update
+RUN apt-get install -y git
+
+WORKDIR /root
+
+RUN git clone --depth 1 --branch ${HUGO_VER} https://github.com/gohugoio/hugo.git 
+
+RUN cd hugo && CGO_ENABLED=1 /usr/local/go/bin/go install --tags extended
+RUN mkdir -p /hugo/bin && cp /root/go/bin/* /hugo/bin/

@@ -1,0 +1,9 @@
+{
+  "Parameters": {
+    "SubDomain": "xyz",
+    "DomainName": "acme.com",
+    "WebRootBucketName": "nameYourS3OriginBucket",
+    "WebRootBucketLoggingName": "nameYourLoggingBucket",
+    "AcmArn": "arn:aws:acm:us-east-1:....."
+  }
+}

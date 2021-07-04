@@ -1,0 +1,320 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  PipelineStackName:
+    Type: String
+  PipelineName:
+    Type: String
+  BucketPrefix:
+    Type: String
+  BucketRegion:
+    Type: String
+  BucketSuffix:
+    Type: String
+    MaxLength: 9
+    MinLength: 1
+    Default: 'pipeline'
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  CodeBuildProjectName:
+    Type: String
+  BuildSpecFile:
+    Type: String
+  DistributionId:
+    Type: String
+
+Resources:
+
+  CodePipelineBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${BucketPrefix}-${BucketRegion}-${BucketSuffix}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  CloudFormationDeployActionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: ['sts:AssumeRole']
+            Effect: Allow
+            Principal:
+              Service: [cloudformation.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudfront:*'
+                  - 'codepipeline:CreatePipeline'
+                  - 'codepipeline:DeletePipeline'
+                  - 'codepipeline:GetPipeline'
+                  - 'codepipeline:GetPipelineState'
+                  - 'codepipeline:StartPipelineExecution'
+                  - 'codepipeline:UpdatePipeline'
+                  - 'codebuild:*'
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:AddRoleToInstanceProfile'
+                  - 'iam:CreatePolicy'
+                  - 'iam:CreatePolicyVersion'
+                  - 'iam:CreateRole'
+                  - 'iam:CreateInstanceProfile'
+                  - 'iam:DeletePolicy'
+                  - 'iam:DeleteInstanceProfile'
+                  - 'iam:DeletePolicyVersion'
+                  - 'iam:DeleteRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:GetPolicy'
+                  - 'iam:GetPolicyVersion'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:ListEntitiesForPolicy'
+                  - 'iam:ListPolicyVersions'
+                  - 'iam:RemoveRoleFromInstanceProfile'
+                  - 'iam:PassRole'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:SetDefaultPolicyVersion'
+                  - 'iam:UpdateAssumeRolePolicy'
+                  - 'kms:CreateKey'
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+                  - 'kms:Encrypt'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:GetKeyPolicy'
+                  - 'kms:GetPublicKey'
+                  - 'kms:ListKeys'
+                  - 'kms:GenerateRandom'
+                  - 's3:CreateBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:DeleteBucketPolicy'
+                  - 's3:DeleteObject'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketPolicy'
+                  - 's3:ListAllMyBuckets'
+                  - 's3:ListBucket'
+                  - 's3:PutAccelerateConfiguration'
+                  - 's3:PutAccountPublicAccessBlock'
+                  - 's3:PutBucketAcl'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketPublicAccessBlock'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutBucketTagging'
+                  - 's3:PutBucketLogging'
+                  - 's3:PutEncryptionConfiguration'
+                  - 's3:PutLifecycleConfiguration'
+                  - 's3:GetBucketAcl'
+                  - 's3:PutBucketAcl'
+                  - 'secretsmanager:GetSecretValue'
+                Effect: Allow
+                Resource: ['*']
+      RoleName: !Sub '${PipelineName}-CfnDeploy'
+
+  CodePipelineRole:
+    DependsOn:
+      - CloudFormationDeployActionRole
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ['codepipeline.amazonaws.com']
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: codepipeline-service
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:DescribeStackEvents'
+                  - 'cloudformation:DescribeStackResource'
+                  - 'cloudformation:DescribeStackResources'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:GetTemplate'
+                  - 'cloudformation:UpdateStack'
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                  - 'iam:PassRole'
+                  - 's3:CreateBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:DeleteBucketEncryption'
+                  - 's3:DeleteBucketPolicy'
+                  - 's3:DeleteObject'
+                  - 's3:DescribeBucketPolicy'
+                  - 's3:GetBucketEncryption'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketPolicyStatus'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetEncryptionConfiguration'
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:ListBucket'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutEncryptionConfiguration'
+                  - 's3:PutObject'
+                  - 's3:SetBucketEncryption'
+                  - 'secretsmanager:GetSecretValue'
+                Resource: ['*']
+                Effect: Allow
+            Version: 2012-10-17
+      RoleName: !Sub '${PipelineName}-PipelineRole'
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${PipelineName}-CodeBuildRole'
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codebuild.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodeBuildAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow # Minimum permissions to deploy the project
+                Action:
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudfront:CreateInvalidation'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:PutLogEvents'
+                  - 's3:GetObject*'
+                  - 's3:PutObject*'
+                  - 'sts:AssumeRole'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}*'
+                  - !Sub 'arn:aws:s3:::${CodePipelineBucket}'
+                  - !Sub 'arn:aws:s3:::${CodePipelineBucket}/*'
+                  - !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistributionId}'
+
+  HugoCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref CodeBuildProjectName 
+      Description: Build and publish the Hugo static site content to the cloudfront s3 origin
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+        - Name: DistributionId
+          Type: PLAINTEXT
+          Value: !Ref DistributionId
+      Source:
+        BuildSpec: !Ref BuildSpecFile
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
+
+  CodePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineBucket
+      Name: !Ref PipelineName
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - InputArtifacts: []
+              Name: GithubSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              Configuration:
+                Owner: '{{resolve:secretsmanager:SecretName:SecretString:abc}}'
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: '{{resolve:secretsmanager:SecretName:SecretString:def}}' 
+                PollForSourceChanges: true
+              OutputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 1
+        - Name: AdministerPipeline
+          Actions:
+            - Name: AdministerPipeline
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !GetAtt CloudFormationDeployActionRole.Arn
+                StackName: !Ref PipelineStackName
+                TemplateConfiguration: GitHubSource::aws-infrastructure/pipeline.json
+                TemplatePath: GitHubSource::aws-infrastructure/pipeline.yml
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 2
+        - Name: CDN
+          Actions:
+            - Name: PublishContent
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !GetAtt CloudFormationDeployActionRole.Arn
+                StackName: CDN-Distribuition-StackName
+                TemplatePath: GitHubSource::aws-infrastructure/cloudfront-s3.yml
+                TemplateConfiguration: GitHubSource::aws-infrastructure/cloudfront-s3.json
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 3
+        - Name: PublishSiteContent
+          Actions:
+            - Name: HugoStaticSiteContent
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectName
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 4
+    
+Outputs:
+  CloudFormationDeployActionRoleArn:
+    Description: CloudFormationDeployActionRole Arn
+    Value: !GetAtt CloudFormationDeployActionRole.Arn
+  CodePipelineRoleArn:
+    Description: CodePipelineRole Arn
+    Value: !GetAtt CodePipelineRole.Arn
+  CodeBuildRoleArn:
+    Description: Codebuild Role Arn 
+    Value: !GetAtt CodeBuildRole.Arn
+  CodePipelineName:
+    Description: CodePipeline Name
+    Value: !Ref CodePipeline

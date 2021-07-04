@@ -1,0 +1,26 @@
+[
+  {
+    "ParameterKey": "PipelineStackName",
+    "ParameterValue": "...."
+  },
+  {
+    "ParameterKey": "PipelineName",
+    "ParameterValue": "..."
+  },
+  {
+    "ParameterKey": "BucketPrefix",
+    "ParameterValue": "...."
+  },
+  {
+    "ParameterKey": "BucketRegion",
+    "ParameterValue": "ap-southeast-2"
+  },
+  {
+    "ParameterKey": "GitHubRepo",
+    "ParameterValue": "...."
+  },
+  {
+    "ParameterKey": "GitHubBranch",
+    "ParameterValue": "...."
+  }
+]
